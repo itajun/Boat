@@ -14,6 +14,7 @@ import android.widget.ToggleButton;
 import com.ivj.android.R;
 
 import org.ivj.android.sound.CommandReader;
+import org.ivj.android.sound.CommandWriter;
 
 /**
  * Launcher Activity
@@ -40,9 +41,12 @@ public class JackActivity extends Activity {
         }
     };
 
+    private final Handler writerHandler = new Handler();
+
     private TextView mTextView;
     private ProgressBar mProgressBar;
     private CommandReader mReceiver;
+    private CommandWriter mWriter;
 
     @Override
     public void onCreate(final Bundle savedInstanceState) {
@@ -58,11 +62,12 @@ public class JackActivity extends Activity {
 
         mReceiver = new CommandReader(mHandler);
         mReceiver.init();
+
+        mWriter = new CommandWriter();
     }
 
     @Override
     protected void onPause() {
-        mReceiver.stop();
         super.onPause();
         System.runFinalizersOnExit(true);
         System.exit(0);
@@ -70,7 +75,6 @@ public class JackActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        mReceiver.destroy();
         super.onDestroy();
     }
 
@@ -79,8 +83,11 @@ public class JackActivity extends Activity {
         ToggleButton tb = (ToggleButton) view;
         if (tb.isChecked()) {
             mReceiver.start();
+            final Thread thread = new CommandWriter();
+            thread.start();
         } else {
-            mReceiver.stop();
+            mReceiver.stopReading();
+            mWriter.stopPlaying();
         }
     }
 }
