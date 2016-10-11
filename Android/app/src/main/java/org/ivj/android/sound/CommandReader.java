@@ -14,7 +14,7 @@ import android.util.Log;
 
 public class CommandReader {
     public static final int LENGTH_EOC = 100;
-    public static final int LENGTH_EON = 50;
+    public static final int LENGTH_EON = 20;
 
     private static final byte IN_BUFFER_SIZE = 5;
     private static final String TAG = "COMMANDREADER";

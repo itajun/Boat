@@ -5,8 +5,8 @@ const int ANALOG_OUT_PIN = A1;
 
 const int TONE_FREQUENCY = 1000;
 
-const int LENGTH_EOP = 100;
-const int LENGTH_EOI = 50;
+const int LENGTH_EOP = 50;
+const int LENGTH_EOI = 10;
 
 const int MIN_ACCEP_SENSOR_VAL = 20;
 const byte BUFFER_SIZE = 5;
@@ -89,7 +89,7 @@ void readCycle() {
   
         if (millis() - prevTimeZero >= LENGTH_EOP) {
           if (idxInBuffer > 0) {
-            // Indicate that we won't read anything until it is clear
+            // Indicate that we won't read anything until it is cleared
             idxInBuffer = BUFFER_SIZE;
           }
         }
@@ -110,9 +110,14 @@ void readCycle() {
 
 void execCycle() {
   if (idxInBuffer == BUFFER_SIZE) {
-    printCalibration();
-    printDebug();
-    outputCommand(inBuffer);
+    // printCalibration();
+    // printDebug();
+    if (inBuffer[0] < 15) {
+      commandEcho();
+    } else if (inBuffer[0] < 25) {
+      commandBlink();
+    }
+    
     clearInBuffer();
   }
 }
@@ -158,6 +163,18 @@ void clearOutBuffer() {
   }
 }
 
+void commandBlink() {
+  if (inBuffer[1] < 50) {
+    digitalWrite(8, HIGH);
+  } else {
+    digitalWrite(8, LOW);
+  }
+}
+
+void commandEcho() {
+  outputCommand(inBuffer);
+}
+
 void printCalibration() {
   Serial.print("\t sensorMin = ");
   Serial.print(sensorMin);
@@ -189,6 +206,6 @@ void printDebug() {
   Serial.print("\t prev_time_zero = ");
   Serial.print(prevTimeZero);
   Serial.print("\t prev_time_value = ");
-  Serial.print(prevTimeValue);
+  Serial.println(prevTimeValue);
 }
 
