@@ -27,8 +27,7 @@ unsigned short inBuffer[BUFFER_SIZE] = {};
 
 byte idxOutBuffer = 0;
 unsigned short outBuffer[BUFFER_SIZE] = {};
-unsigned long sendSignalStarted = 0;
-boolean sendingCommand = false;
+unsigned long sendSignalEnd = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -123,26 +122,23 @@ void execCycle() {
 }
 
 void sendCycle() {
-  if (sendingCommand && millis() - sendSignalStarted >= outBuffer[idxOutBuffer]) {
+  if (millis() >= sendSignalEnd && outBuffer[idxOutByffer] > 0) {
     noTone(ANALOG_OUT_PIN);
     outBuffer[idxOutBuffer] = 0;
     ++idxOutBuffer == BUFFER_SIZE ? 0 : idxOutBuffer;
-    sendSignalStarted = millis() + LENGTH_EOI;
     if (outBuffer[idxOutBuffer] == 0) {
-      sendSignalStarted += LENGTH_EOP;
+      sendSignalEnd += LENGTH_EOP;
       clearOutBuffer();
     }
-    sendingCommand = false;
   }
-  if (!sendingCommand && outBuffer[idxOutBuffer] > 0 && sendSignalStarted < millis()) {
+  if (outBuffer[idxOutBuffer] > 0 && sendSignalEnd < millis()) {
     tone(ANALOG_OUT_PIN, TONE_FREQUENCY);
-    sendSignalStarted = millis();
-    sendingCommand = true;
+    sendSignalEnd = millis() + outBuffer[idxOutBuffer];
   }
 }
 
 void outputCommand(unsigned short values[]) {
-  if (sendingCommand) {
+  if (sendSignalEnd >= millis()) {
     return;
   }
   
