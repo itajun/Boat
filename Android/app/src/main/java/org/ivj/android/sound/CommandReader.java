@@ -8,261 +8,227 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
-/**
- * Created by Itamar on 5/10/2016.
- */
-
 public class CommandReader {
-    public static final int LENGTH_EOC = 100;
-    public static final int LENGTH_EON = 20;
+    private static final String LOG_TAG = CommandReader.class.getName();
 
-    private static final byte IN_BUFFER_SIZE = 5;
-    private static final String TAG = "COMMANDREADER";
-    private final Handler handler;
-    private AudioRecord audioRecord;
-    private boolean shouldStop = false;
+    private static final int ACCEPT_RATES[] = {8000, 44100};
 
-    private int min = Short.MAX_VALUE;
-    private int max = 0;
+    private Handler handler;
+    private AudioRecord audioRecorder;
+
+    private int sensorMin = Short.MAX_VALUE;
+    private int sensorMax = 0;
     private boolean calibrated = false;
-    private int silenceLevel;
 
     private int valueCount = 0;
     private int zeroCount = 0;
-    private long lastTimeZero = 0;
-    private long lastTimeValue = 0;
-    private byte posBuffer = 0;
-    private int inBuffer[] = new int[5];
+
+    private long prevTimeZero = 0;
+    private long prevTimeValue = 0;
+
+    private byte idxInBuffer = 0;
+    private int inBuffer[] = new int[Constants.BUFFER_SIZE];
+
     private long currentIndex = 0;
-    private long total = 0;
 
-    private int BUFFER_SIZE;
+    private int accumulatedValueLen = 0;
 
-    private long threadStarted;
+    private int audioBufferSize;
+    private int audioSampleRate;
+    private ReadingThread readingThread;
 
     public CommandReader(Handler handler) {
-        //this.setDaemon(true);
         this.handler = handler;
     }
 
-    /**
-     * Scan for the best configuration parameter for AudioRecord object on this device.
-     * Constants value are the audio source, the encoding and the number of channels.
-     * That means were are actually looking for the fitting sample rate and the minimum
-     * buffer size. Once both values have been determined, the corresponding program
-     * variable are initialized (audioSource, sampleRate, channelConfig, audioFormat)
-     * For each tested sample rate we request the minimum allowed buffer size. Testing the
-     * return value let us know if the configuration parameter are good to go on this
-     * device or not.
-     * <p>
-     * This should be called in at start of the application in onCreate().
-     */
-    public AudioRecord initRecorderParameters(int[] sampleRates) {
-
-        for (int i = 0; i < sampleRates.length; ++i) {
+    public void initAudioRecorder() {
+        for (int i = 0; i < ACCEPT_RATES.length; ++i) {
             try {
-                Log.i(TAG, "Indexing " + sampleRates[i] + "Hz Sample Rate");
-                BUFFER_SIZE = AudioRecord.getMinBufferSize(sampleRates[i],
+                int minAudioBufferSize = AudioRecord.getMinBufferSize(ACCEPT_RATES[i],
                         AudioFormat.CHANNEL_IN_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT) * 100;
+                        AudioFormat.ENCODING_PCM_16BIT);
 
-                // Test the minimum allowed buffer size with this configuration on this device.
-                if (BUFFER_SIZE != AudioRecord.ERROR_BAD_VALUE) {
-                    // Seems like we have ourself the optimum AudioRecord parameter for this device.
-                    AudioRecord tmpRecoder = new AudioRecord(MediaRecorder.AudioSource.MIC,
-                            sampleRates[i],
+                if (minAudioBufferSize != AudioRecord.ERROR_BAD_VALUE) {
+                    audioRecorder = new AudioRecord(MediaRecorder.AudioSource.MIC,
+                            ACCEPT_RATES[i],
                             AudioFormat.CHANNEL_IN_MONO,
                             AudioFormat.ENCODING_PCM_16BIT,
-                            BUFFER_SIZE);
-                    // Test if an AudioRecord instance can be initialized with the given parameters.
-                    if (tmpRecoder.getState() == AudioRecord.STATE_INITIALIZED) {
-                        String configResume = "initRecorderParameters(sRates) has found recorder settings supported by the device:"
-                                + "\nSource   = MICROPHONE"
-                                + "\nsRate    = " + sampleRates[i] + "Hz"
-                                + "\nChannel  = MONO"
-                                + "\nEncoding = 16BIT";
-                        Log.i(TAG, configResume);
+                            minAudioBufferSize);
 
-                        return tmpRecoder;
+                    if (audioRecorder.getState() == AudioRecord.STATE_INITIALIZED) {
+                        audioSampleRate = ACCEPT_RATES[i];
+                        audioBufferSize = ACCEPT_RATES[i] * 5; // Force 5s
+                        return;
                     }
                 } else {
-                    Log.w(TAG, "Incorrect buffer size. Continue sweeping Sampling Rate...");
+                    Log.w(LOG_TAG, "Incorrect buffer size. Continue sweeping Sampling Rate...");
                 }
             } catch (IllegalArgumentException e) {
-                Log.e(TAG, "The " + sampleRates[i] + "Hz Sampling Rate is not supported on this device");
+                Log.e(LOG_TAG, "The " + ACCEPT_RATES[i] + "Hz Sampling Rate is not supported on this device");
             }
         }
-        return null;
     }
 
-
-    void clearBuffer() {
-        for (posBuffer = IN_BUFFER_SIZE - 1; posBuffer > 0; posBuffer--) {
-            inBuffer[posBuffer] = 0;
+    private void clearBuffer() {
+        for (idxInBuffer = Constants.BUFFER_SIZE - 1; idxInBuffer > 0; idxInBuffer--) {
+            inBuffer[idxInBuffer] = 0;
         }
     }
 
-
-    public void start() {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                threadStarted = System.currentTimeMillis();
-                CommandReader.this.run();
-            }
-        }).start();
-    }
-
-    public void init() {
-        audioRecord = initRecorderParameters(new int[]{44100});
-
-        audioRecord.startRecording();
-    }
-
-    int map(int x, int in_min, int in_max, int out_min, int out_max) {
+    private int map(int x, int in_min, int in_max, int out_min, int out_max) {
         return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
     }
 
-    public void run() {
-        shouldStop = false;
-        int accumulatedValue = 0;
-
-        long x = 0, y = 0;
-        long lastProcessedMs = 0;
-
-        while (!shouldStop) {
-            final short[] buffer = new short[BUFFER_SIZE];
-            int offset = 0;
-            while (offset < BUFFER_SIZE) {
-                if (shouldStop) {
-                    break;
-                }
-                offset += audioRecord.read(buffer, offset, BUFFER_SIZE - offset);
-            }
-
-            if (!calibrated) {
-                int sum = 0;
-                for (int i = 0; i < buffer.length; i++) {
-                    int value = Math.abs(buffer[i]);
-                    sum += value;
-                    if (value < min) min = value;
-                    if (value > max) max = value;
-                }
-                silenceLevel = sum / buffer.length / 10;
-                if (max - min > 100) {
-                    Log.i("Reader", "Calibrated!" + min + " - " + max + " - " + silenceLevel);
-                    calibrated = true;
-                } else {
-                    Log.i("Reader", "Failed to calibrate");
-                    min = 0;
-                }
-                continue;
-            }
-
-            StringBuffer ms = new StringBuffer();
-            byte itemsRead = 0;
+    private boolean checkCalibration(short[] buffer) {
+        if (!calibrated) {
             for (int i = 0; i < buffer.length; i++) {
-                currentIndex++;
-                itemsRead++;
-
                 int value = Math.abs(buffer[i]);
-                if (value > max) max = value;
-                if (value < min) min = value;
-                //value = map(value, min, max, 0, 255);
-
-                accumulatedValue += value;
-
-                long idxMs = toMs(currentIndex);
-
-                if (idxMs <= lastProcessedMs) {
-                    continue;
-                }
-
-                int sensorValue = accumulatedValue / itemsRead;
-                sensorValue = map(sensorValue, min, max, 0, 2);
-                //if (sensorValue < 200) sensorValue = 0;
-                accumulatedValue = 0;
-                itemsRead = 0;
-
-                ms.append("," + sensorValue);
-
-                if (ms.length() > 40) {
-                    //Log.i(TAG, ms.toString());
-                    ms = new StringBuffer();
-                }
-
-
-                //Log.i("XXX", " " + idxMs + " - " + sensorValue);
-
-
-                if (sensorValue == 0) {
-                    if ((zeroCount > 0) && (lastProcessedMs - lastTimeZero >= LENGTH_EON)) {
-                        if (total > 0) {
-                                Log.i("Reader", "\t length = " + total);
-                            inBuffer[posBuffer++] = (int) total;
-                            total = 0;
-                        }
-
-                        if (lastProcessedMs - lastTimeZero >= LENGTH_EOC) {
-                            if (posBuffer > 0) {
-                                Log.i("Reader", "inBuffer = ");
-                                Log.i("Reader", "" + inBuffer[0] + ",");
-                                Log.i("Reader", "" + inBuffer[1] + ",");
-                                Log.i("Reader", "" + inBuffer[2] + ",");
-                                Log.i("Reader", "" + inBuffer[3] + ",");
-                                Log.i("Reader", "" + inBuffer[4] + ",");
-                                Log.i("Reader", "\t prev_time_zero = ");
-                                Log.i("Reader", "" + lastTimeZero);
-                                Log.i("Reader", "\t prev_time_value = ");
-                                Log.i("Reader", "" + lastTimeValue);
-                                Log.i("Reader", "\t valueCount = ");
-                                Log.i("Reader", "" + valueCount);
-                                Log.i("Reader", "\t sensorMin = ");
-                                Log.i("Reader", "" + min);
-                                Log.i("Reader", "\t sensorMax = ");
-                                Log.i("Reader", "" + max);
-                                Log.i("Reader", "\t millis = ");
-                                Log.i("Reader", "" + currentIndex);
-
-                                Message message = new Message();
-                                message.what = 1;
-                                Bundle bundle = new Bundle();
-                                bundle.putString("value", "" + inBuffer[0] + ","+ inBuffer[1] + "," + inBuffer[2] + "," + inBuffer[3] + "," + inBuffer[4] + ",");
-                                message.setData(bundle);
-                                handler.sendMessage(message);
-
-                                clearBuffer();
-                            }
-                        }
-
-                        valueCount = 0;
-                    }
-
-                    if (zeroCount == 0) {
-                        lastTimeZero = lastProcessedMs;
-                    }
-
-                    zeroCount++;
-                } else {
-                    if (valueCount == 0) {
-                        lastTimeValue = lastProcessedMs;
-                    }
-                    zeroCount = 0;
-                    total = lastProcessedMs - lastTimeValue;
-                    valueCount++;
-                    lastTimeZero = lastProcessedMs+1;
-                }
-
-                lastProcessedMs = idxMs;
+                if (value < sensorMin) sensorMin = value;
+                if (value > sensorMax) sensorMax = value;
+            }
+            if (sensorMax - sensorMin > 100) {
+                Log.i(LOG_TAG, "Calibrated!" + sensorMin + " - " + sensorMax);
+                calibrated = true;
+            } else {
+                Log.w(LOG_TAG, "Failed to calibrate");
+                sensorMin = 0;
             }
         }
+        return true;
+    }
+
+    private void processCommand() {
+        Message message = new Message();
+        message.what = 1;
+        Bundle bundle = new Bundle();
+        bundle.putString("value", "" + inBuffer[0] + "," + inBuffer[1] + "," + inBuffer[2] + "," + inBuffer[3] + "," + inBuffer[4] + ",");
+        message.setData(bundle);
+        handler.sendMessage(message);
+
+        clearBuffer();
     }
 
     public long toMs(long index) {
-        return (long) (index / 44.1);
+        return (long) ((index / (audioSampleRate / 1000d)));
     }
 
     public void stopReading() {
-        shouldStop = true;
+        if (readingThread != null) {
+            readingThread.stopRunning();
+        };
+        audioRecorder.stop();
+    }
+
+    public void doIt() {
+        if (audioRecorder == null) {
+            initAudioRecorder();
+        }
+        audioRecorder.startRecording();
+        this.readingThread = new ReadingThread();
+        this.readingThread.start();
+    }
+
+    class ReadingThread extends Thread {
+        private boolean shouldStop = false;
+
+        public void stopRunning() {
+            this.shouldStop = true;
+        }
+
+        private boolean checkStop() {
+            if (shouldStop) {
+                throw new IllegalStateException("Stopped by user");
+            }
+            return true;
+        }
+
+        private void internalRun() {
+            int sensorValue = 0;
+            long lastProcessedMs = 0;
+
+            while (checkStop()) {
+                final short[] buffer = new short[audioBufferSize];
+                int readingOffset = 0;
+
+                while (readingOffset < audioBufferSize && checkStop()) {
+                    readingOffset += audioRecorder.read(buffer, readingOffset, audioBufferSize - readingOffset);
+                }
+
+                checkStop();
+
+                byte indexesRead = 0;
+                for (int i = 0; i < buffer.length; i++) {
+                    checkStop();
+                    currentIndex++;
+                    indexesRead++;
+
+                    int value = Math.abs(buffer[i]);
+
+                    // Unlikely, but the amplitude may have changed
+                    if (value > sensorMax) sensorMax = value;
+                    if (value < sensorMin) sensorMin = value;
+
+                    sensorValue += value;
+
+                    long idxMs = toMs(currentIndex);
+
+                    if (idxMs <= lastProcessedMs) {
+                        continue;
+                    }
+
+                    sensorValue = map(sensorValue / indexesRead, sensorMin, sensorMax, 0, 2);
+
+                    // Start next ms
+                    indexesRead = 0;
+
+                    if (sensorValue == 0) {
+                        if (zeroCount == 0) {
+                            prevTimeZero = lastProcessedMs;
+                        }
+
+                        zeroCount++;
+
+                        if ((lastProcessedMs - prevTimeZero >= Constants.LENGTH_EOI)) {
+                            if (idxInBuffer < Constants.BUFFER_SIZE) {
+                                if (accumulatedValueLen > 0) {
+                                    inBuffer[idxInBuffer++] = accumulatedValueLen;
+                                    accumulatedValueLen = 0;
+                                }
+
+                                if (lastProcessedMs - prevTimeZero >= Constants.LENGTH_EOP) {
+                                    if (idxInBuffer > 0) {
+                                        // Indicate that we won't read anything until it is cleared
+                                        idxInBuffer = Constants.BUFFER_SIZE;
+                                        processCommand();
+                                    }
+                                }
+                            }
+
+                            valueCount = 0;
+                        }
+                    } else {
+                        if (valueCount == 0) {
+                            prevTimeValue = lastProcessedMs;
+                        }
+                        valueCount++;
+                        zeroCount = 0;
+
+                        accumulatedValueLen = (int) (lastProcessedMs - prevTimeValue);
+                    }
+
+                    lastProcessedMs = idxMs;
+                }
+            }
+        }
+
+        @Override
+        public void run() {
+            // Don't let Android get the exception
+            try {
+                internalRun();
+            } catch (Exception e) {
+                Log.e(LOG_TAG, e.getMessage(), e);
+            }
+        }
     }
 }

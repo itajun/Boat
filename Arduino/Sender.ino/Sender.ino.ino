@@ -111,7 +111,7 @@ void readCycle() {
 void execCycle() {
   if (idxInBuffer == BUFFER_SIZE) {
     // printCalibration();
-    // printDebug();
+     printDebug();
     if (inBuffer[0] < 15) {
       commandEcho();
     } else if (inBuffer[0] < 25) {
@@ -124,10 +124,11 @@ void execCycle() {
 
 void sendCycle() {
   if (sendingCommand && millis() - sendSignalStarted >= outBuffer[idxOutBuffer]) {
+    Serial.println("Sending off");
     noTone(ANALOG_OUT_PIN);
     outBuffer[idxOutBuffer] = 0;
     ++idxOutBuffer == BUFFER_SIZE ? 0 : idxOutBuffer;
-    sendSignalStarted = millis() + LENGTH_EOI;
+    sendSignalStarted = millis() + ((LENGTH_EOI + LENGTH_EOP) / 2);
     if (outBuffer[idxOutBuffer] == 0) {
       sendSignalStarted += LENGTH_EOP;
       clearOutBuffer();
@@ -135,6 +136,7 @@ void sendCycle() {
     sendingCommand = false;
   }
   if (!sendingCommand && outBuffer[idxOutBuffer] > 0 && sendSignalStarted < millis()) {
+    Serial.println("Sending on");
     tone(ANALOG_OUT_PIN, TONE_FREQUENCY);
     sendSignalStarted = millis();
     sendingCommand = true;

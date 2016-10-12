@@ -7,7 +7,7 @@
     <uses-sdk android:minSdkVersion="7" android:targetSdkVersion="16"/>
     <application android:label="@string/app_name"
                  android:icon="@drawable/ic_launcher">
-        <activity android:name="org.ivj.android.JackActivity"
+        <activity android:name="org.ivj.android.MainActivity"
                   android:label="@string/app_name"
                   android:icon="@drawable/ic_launcher"
                   android:screenOrientation="landscape">

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                android:orientation="horizontal"
+    android:orientation="horizontal"
                 android:layout_width="fill_parent"
                 android:layout_height="fill_parent"
                 android:layout_centerInParent="true"
@@ -8,51 +8,26 @@
                 android:background="@drawable/rounded_border"
         >
 
-   
-    <LinearLayout android:id="@+id/ll"
-                  android:orientation="horizontal"
+
+    <ListView
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:id="@+id/log_list"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:layout_above="@+id/tb" />
+
+    <ToggleButton android:id="@+id/tb"
                   android:layout_width="fill_parent"
                   android:layout_height="wrap_content"
-                  android:layout_alignParentTop="true"
-                  android:layout_margin="5dp"
-            >
-    <ProgressBar android:id="@+id/pb"
-                 android:layout_width="fill_parent"
-                 android:layout_height="40dp"
-                 style="?android:attr/progressBarStyleHorizontal"
-                 android:max="100"
-                 android:progress="0" />
-    </LinearLayout>
-    
-   <ToggleButton android:id="@+id/tb"
-                  android:layout_width="fill_parent"
-                  android:layout_height="wrap_content"
-                  android:layout_alignParentBottom="true"
-                  android:padding="25dp"
-                  android:layout_margin="5dp"
+        android:padding="25dp"
 
-                  android:onClick="onClick_Toggle"
-                  android:textOn="Listening"
-                  android:textOff="Click to Listen"/>
-
-    <TextView style="@android:style/TextAppearance.Large"
-              android:id="@+id/tv"
-              android:layout_width="fill_parent"
-              android:layout_height="fill_parent"
-              android:layout_above="@id/tb"
-              android:layout_below="@id/ll"
-              android:layout_margin="5dp"
-              android:padding="15dp"
-              android:maxLines="3"
-              android:gravity="center"
-              android:text="0"
-              android:background="#CC333333"
-              android:textColor="#FFF07000" android:textSize="40dp"
-              android:singleLine="false"
-              android:scrollbars="vertical"
-              android:focusable="true"
-              android:focusableInTouchMode="true"
-            />
+        android:onClick="onClick_Toggle"
+                  android:textOn="Stop"
+                  android:textOff="Start"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true" />
 
 </RelativeLayout>
 
