@@ -27,7 +27,8 @@ unsigned short inBuffer[BUFFER_SIZE] = {};
 
 byte idxOutBuffer = 0;
 unsigned short outBuffer[BUFFER_SIZE] = {};
-unsigned long sendSignalEnd = 0;
+unsigned long sendSignalStarted = 0;
+boolean sendingCommand = false;
 
 void setup() {
   Serial.begin(9600);
@@ -62,30 +63,30 @@ void loop() {
 
 void readCycle() {
   unsigned short sensorValue = analogRead(ANALOG_IN_PIN);
-  
+
   if (sensorValue > sensorMax) {
     sensorMax = sensorValue;
   }
   if (sensorValue < sensorMin) {
     sensorMin = sensorValue;
   }
-  
+
   sensorValue = map(sensorValue, sensorMin, sensorMax, 0, 2);
 
   if (sensorValue == 0) {
     if (zeroCount == 0) {
       prevTimeZero = millis();
     }
-    
+
     zeroCount++;
-    
+
     if ((millis() - prevTimeZero >= LENGTH_EOI)) {
       if (idxInBuffer < BUFFER_SIZE) {
         if (accumulatedValueLen > 0) {
           inBuffer[idxInBuffer++] = accumulatedValueLen;
           accumulatedValueLen = 0;
         }
-  
+
         if (millis() - prevTimeZero >= LENGTH_EOP) {
           if (idxInBuffer > 0) {
             // Indicate that we won't read anything until it is cleared
@@ -116,29 +117,32 @@ void execCycle() {
     } else if (inBuffer[0] < 25) {
       commandBlink();
     }
-    
+
     clearInBuffer();
   }
 }
 
 void sendCycle() {
-  if (millis() >= sendSignalEnd && outBuffer[idxOutByffer] > 0) {
+  if (sendingCommand && millis() - sendSignalStarted >= outBuffer[idxOutBuffer]) {
     noTone(ANALOG_OUT_PIN);
     outBuffer[idxOutBuffer] = 0;
     ++idxOutBuffer == BUFFER_SIZE ? 0 : idxOutBuffer;
+    sendSignalStarted = millis() + LENGTH_EOI;
     if (outBuffer[idxOutBuffer] == 0) {
-      sendSignalEnd += LENGTH_EOP;
+      sendSignalStarted += LENGTH_EOP;
       clearOutBuffer();
     }
+    sendingCommand = false;
   }
-  if (outBuffer[idxOutBuffer] > 0 && sendSignalEnd < millis()) {
+  if (!sendingCommand && outBuffer[idxOutBuffer] > 0 && sendSignalStarted < millis()) {
     tone(ANALOG_OUT_PIN, TONE_FREQUENCY);
-    sendSignalEnd = millis() + outBuffer[idxOutBuffer];
+    sendSignalStarted = millis();
+    sendingCommand = true;
   }
 }
 
 void outputCommand(unsigned short values[]) {
-  if (sendSignalEnd >= millis()) {
+  if (sendingCommand) {
     return;
   }
   
