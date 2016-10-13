@@ -107,11 +107,15 @@ public class CommandWriter extends Thread {
         private void internalRun() {
             while (checkStop()) {
                 try {
+                    send(40);
                     send(20);
-                    Thread.sleep(5000);
-                    send(10, 100, 50, 10);
-                    Thread.sleep(5000);
-                    send(20, 1000);
+                    Thread.sleep(2000);
+                    send(30, 0, 0, 0);
+                    Thread.sleep(1000);
+                    send(30, 255, 0, 0);
+                    Thread.sleep(2000);
+                    send(20, 100);
+                    send(40, 100);
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     throw new IllegalStateException(e);

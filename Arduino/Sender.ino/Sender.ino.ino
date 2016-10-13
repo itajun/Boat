@@ -2,6 +2,9 @@
 
 const int ANALOG_IN_PIN = A0;
 const int ANALOG_OUT_PIN = A1;
+const int DIGITAL_MOTOR_PIN = 8;
+const int PWM_SERVO_PIN = 11;
+const int LED_PIN = 13;
 
 const int TONE_FREQUENCY = 1000;
 
@@ -33,10 +36,13 @@ boolean sendingCommand = false;
 void setup() {
   Serial.begin(9600);
 
-  pinMode(13, OUTPUT);
+  pinMode(ANALOG_IN_PIN, INPUT);
+  pinMode(ANALOG_OUT_PIN, OUTPUT);
+  pinMode(PWM_SERVO_PIN, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
 
   while (sensorMax < MIN_ACCEP_SENSOR_VAL) {
-    digitalWrite(13, HIGH);
+    digitalWrite(LED_PIN, HIGH);
     unsigned short sensorValue = analogRead(ANALOG_IN_PIN);
     if (sensorValue > sensorMax) {
       sensorMax = sensorValue;
@@ -49,7 +55,7 @@ void setup() {
       delay(1000);
       noTone(ANALOG_OUT_PIN);
     }
-    digitalWrite(13, LOW);
+    digitalWrite(LED_PIN, LOW);
   }
 
   printCalibration();
@@ -115,7 +121,11 @@ void execCycle() {
     if (inBuffer[0] < 15) {
       commandEcho();
     } else if (inBuffer[0] < 25) {
-      commandBlink();
+      commandMotor();
+    } else if (inBuffer[0] < 35) {
+      commandServo();
+    } else if (inBuffer[0] < 45) {
+      commandLED();
     }
 
     clearInBuffer();
@@ -165,11 +175,23 @@ void clearOutBuffer() {
   }
 }
 
-void commandBlink() {
+void commandMotor() {
   if (inBuffer[1] < 50) {
-    digitalWrite(8, HIGH);
+    digitalWrite(DIGITAL_MOTOR_PIN, HIGH);
   } else {
-    digitalWrite(8, LOW);
+    digitalWrite(DIGITAL_MOTOR_PIN, LOW);
+  }
+}
+
+void commandServo() {
+  analogWrite(PWM_SERVO_PIN, inBuffer[1]);
+}
+
+void commandLED() {
+  if (inBuffer[1] < 50) {
+    digitalWrite(LED_PIN, HIGH);
+  } else {
+    digitalWrite(LED_PIN, LOW);
   }
 }
 
