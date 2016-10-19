@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.design.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main_content"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    tools:context="com.ivj.androidremotecontroller.MainActivity">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <EditText
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textPersonName"
+            android:text="10.1.1.5"
+            android:ems="10"
+            android:id="@+id/ipText" />
+
+        <Button
+            android:text="Ping"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/pingButton"
+            android:onClick="pingButtonClick" />
+
+        <Button
+            android:text="Run"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/runButton" />
+
+        <ListView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/logEntry" />
+
+    </LinearLayout>
+</android.support.design.widget.CoordinatorLayout>

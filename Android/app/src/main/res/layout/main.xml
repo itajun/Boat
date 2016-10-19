@@ -9,25 +9,34 @@
         >
 
 
-    <ListView
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
-        android:id="@+id/log_list"
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_alignParentTop="true"
         android:layout_alignParentLeft="true"
-        android:layout_alignParentStart="true"
-        android:layout_above="@+id/tb" />
+        android:layout_alignParentStart="true">
 
-    <ToggleButton android:id="@+id/tb"
-                  android:layout_width="fill_parent"
-                  android:layout_height="wrap_content"
-        android:padding="25dp"
+        <ToggleButton android:id="@+id/tb"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+            android:padding="25dp"
 
-        android:onClick="onClick_Toggle"
-                  android:textOn="Stop"
-                  android:textOff="Start"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentStart="true" />
+            android:onClick="onClick_Toggle"
+                      android:textOn="Stop"
+                      android:textOff="Start"
+            android:layout_alignParentBottom="true"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true" />
+
+        <ListView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:id="@+id/log_list"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true" />
+    </LinearLayout>
 
 </RelativeLayout>
 

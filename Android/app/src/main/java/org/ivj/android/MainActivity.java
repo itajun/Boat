@@ -15,6 +15,7 @@ import android.widget.ToggleButton;
 
 import com.ivj.android.R;
 
+import org.ivj.android.socket.Server;
 import org.ivj.android.sound.CommandReader;
 import org.ivj.android.sound.CommandWriter;
 
@@ -44,6 +45,8 @@ public class MainActivity extends Activity {
     private CommandReader commandReader;
     private CommandWriter commandWriter;
 
+    private Server server;
+
     @Override
     public void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -55,6 +58,8 @@ public class MainActivity extends Activity {
 
         commandReader = new CommandReader(handler);
         commandWriter = new CommandWriter(handler);
+
+        server = new Server(handler);
     }
 
     public void onClick_Toggle(final View view) {
@@ -62,9 +67,11 @@ public class MainActivity extends Activity {
         if (tb.isChecked()) {
             commandReader.doIt();
             commandWriter.doIt();
+            server.start();
         } else {
             commandReader.stopReading();
             commandWriter.stopPlaying();
+            server.shutdown();
         }
     }
 }

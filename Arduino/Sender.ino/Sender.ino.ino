@@ -41,7 +41,7 @@ void setup() {
   pinMode(PWM_SERVO_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
 
-  while (sensorMax < MIN_ACCEP_SENSOR_VAL) {
+  while ((sensorMax - sensorMin) < MIN_ACCEP_SENSOR_VAL || sensorMax == 0) {
     digitalWrite(LED_PIN, HIGH);
     unsigned short sensorValue = analogRead(ANALOG_IN_PIN);
     if (sensorValue > sensorMax) {
@@ -134,7 +134,6 @@ void execCycle() {
 
 void sendCycle() {
   if (sendingCommand && millis() - sendSignalStarted >= outBuffer[idxOutBuffer]) {
-    Serial.println("Sending off");
     noTone(ANALOG_OUT_PIN);
     outBuffer[idxOutBuffer] = 0;
     ++idxOutBuffer == BUFFER_SIZE ? 0 : idxOutBuffer;
@@ -146,7 +145,6 @@ void sendCycle() {
     sendingCommand = false;
   }
   if (!sendingCommand && outBuffer[idxOutBuffer] > 0 && sendSignalStarted < millis()) {
-    Serial.println("Sending on");
     tone(ANALOG_OUT_PIN, TONE_FREQUENCY);
     sendSignalStarted = millis();
     sendingCommand = true;
