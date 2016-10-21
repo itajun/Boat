@@ -8,9 +8,7 @@ import android.os.Message;
 import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
-import android.widget.ListAdapter;
 import android.widget.ListView;
-import android.widget.TextView;
 import android.widget.ToggleButton;
 
 import com.ivj.android.R;
@@ -32,6 +30,7 @@ public class MainActivity extends Activity {
                     String value = message.getData().getString("value");
                     Log.d(LOG_TAG, "Message received: " + value);
                     logListAdapter.add(value);
+                    logList.setSelection(logList.getCount() - 1);
                 }
             }
         }
@@ -57,16 +56,15 @@ public class MainActivity extends Activity {
         logList.setAdapter(logListAdapter);
 
         commandReader = new CommandReader(handler);
-        commandWriter = new CommandWriter(handler);
-
-        server = new Server(handler);
+        commandWriter = new CommandWriter(handler, commandReader);
+        server = new Server(handler, commandWriter);
     }
 
     public void onClick_Toggle(final View view) {
         ToggleButton tb = (ToggleButton) view;
         if (tb.isChecked()) {
-            commandReader.doIt();
-            commandWriter.doIt();
+            commandReader.setup();
+            commandWriter.setup();
             server.start();
         } else {
             commandReader.stopReading();

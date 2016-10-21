@@ -3,21 +3,42 @@ package org.ivj.android.sound;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
+import android.os.Bundle;
 import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 
 import java.util.Arrays;
+import java.util.Observable;
+import java.util.Observer;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
-public class CommandWriter extends Thread {
+public class CommandWriter extends Thread implements Observer {
     private static final String LOG_TAG = CommandWriter.class.getName();
 
     public static final int AUDIO_SAMPLE_RATE = 44100;
     public static final int TONE_FREQUENCY = 1000;
+    private AudioTrack audioTrack;
+    private final CommandReader commandReader;
     private Handler handler;
     private WritingThread writingThread;
+    private boolean ackReceived;
+    private Queue<int[]> commandQueue;
 
-    public CommandWriter(Handler mHandler) {
+    public CommandWriter(Handler handler, CommandReader commandReader) {
         this.handler = handler;
+        this.commandReader = commandReader;
+        commandReader.addObserver(this);
+        this.commandQueue = new ConcurrentLinkedQueue<>();
+    }
+
+    public void postCommand(int... command) {
+        commandQueue.offer(command);
+        if (writingThread == null) {
+            writingThread = new WritingThread();
+            writingThread.start();
+        }
     }
 
     private byte[] generateFrequency(int... duration) {
@@ -60,12 +81,7 @@ public class CommandWriter extends Thread {
 
         byte[] generatedWave = generateFrequency(duration);
 
-        final AudioTrack audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC,
-                AUDIO_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO,
-                AudioFormat.ENCODING_PCM_16BIT, generatedWave.length,
-                AudioTrack.MODE_STATIC);
         audioTrack.write(generatedWave, 0, generatedWave.length);
-        audioTrack.play();
     }
 
     public void stopPlaying() {
@@ -74,9 +90,51 @@ public class CommandWriter extends Thread {
         }
     }
 
-    public void doIt() {
-        this.writingThread = new WritingThread();
-        this.writingThread.start();
+    public void logOnScreen(String text) {
+        Message message = new Message();
+        message.what = 1;
+        Bundle bundle = new Bundle();
+        bundle.putString("value", text);
+        message.setData(bundle);
+        handler.sendMessage(message);
+    }
+
+    public void setup() {
+        int minSize = AudioTrack.getMinBufferSize( AUDIO_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT );
+        audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC,
+                AUDIO_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_16BIT, minSize,
+                AudioTrack.MODE_STREAM);
+        audioTrack.play();
+
+        if (!ackReceived) {
+            Log.i(LOG_TAG, "Starting communication with Arduino");
+            logOnScreen("Starting communication with Arduino");
+
+            try {
+                commandReader.startReading();
+                for (int attempt = 0; !ackReceived; attempt++) {
+                    postCommand(10); // Echo
+                    Thread.sleep(5000);
+                    if (attempt % 2 == 0) {
+                        logOnScreen("Failed " + (attempt + 1) + " times.");
+                    }
+                }
+                logOnScreen("Good to go!");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                logOnScreen("Failed " + e.getMessage());
+            } finally {
+                commandReader.stopReading();
+            }
+        }
+    }
+
+    @Override
+    public void update(Observable o, Object arg) {
+        if (arg != null && ((int[]) arg)[0] < 15) {
+            ackReceived = true;
+        }
     }
 
     class WritingThread extends Thread {
@@ -105,22 +163,21 @@ public class CommandWriter extends Thread {
         }
 
         private void internalRun() {
-            while (checkStop()) {
+            while (checkStop() && !commandQueue.isEmpty()) {
                 try {
-                    send(40);
-                    send(20);
-                    Thread.sleep(2000);
-                    send(30, 0, 0, 0);
-                    Thread.sleep(1000);
-                    send(30, 255, 0, 0);
-                    Thread.sleep(2000);
-                    send(20, 100);
-                    send(40, 100);
-                    Thread.sleep(5000);
+                    int[] command = commandQueue.poll();
+                    Log.i(LOG_TAG, "Sending command from thread " + command[0]);
+                    send(command);
+                    Thread.sleep(100);
                 } catch (InterruptedException e) {
                     throw new IllegalStateException(e);
                 }
+                writingThread = null;
             }
         }
+    }
+
+    public boolean isAckReceived() {
+        return ackReceived;
     }
 }

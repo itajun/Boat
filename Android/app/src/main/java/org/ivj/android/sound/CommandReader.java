@@ -1,5 +1,6 @@
 package org.ivj.android.sound;
 
+import android.database.Observable;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
@@ -8,7 +9,10 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
-public class CommandReader {
+import java.util.List;
+import java.util.Observer;
+
+public class CommandReader extends java.util.Observable {
     private static final String LOG_TAG = CommandReader.class.getName();
 
     private static final int ACCEPT_RATES[] = {8000, 44100};
@@ -97,13 +101,20 @@ public class CommandReader {
         return true;
     }
 
-    private void processCommand() {
+    public void logOnScreen(String text) {
         Message message = new Message();
         message.what = 1;
         Bundle bundle = new Bundle();
-        bundle.putString("value", "" + inBuffer[0] + "," + inBuffer[1] + "," + inBuffer[2] + "," + inBuffer[3] + "," + inBuffer[4] + ",");
+        bundle.putString("value", text);
         message.setData(bundle);
         handler.sendMessage(message);
+    }
+
+    private void processCommand() {
+        logOnScreen("" + inBuffer[0] + "," + inBuffer[1] + "," + inBuffer[2] + "," + inBuffer[3] + "," + inBuffer[4] + ",");
+
+        setChanged();
+        notifyObservers(inBuffer);
 
         clearBuffer();
     }
@@ -119,10 +130,13 @@ public class CommandReader {
         audioRecorder.stop();
     }
 
-    public void doIt() {
+    public void setup() {
         if (audioRecorder == null) {
             initAudioRecorder();
         }
+    }
+
+    public void startReading() {
         audioRecorder.startRecording();
         this.readingThread = new ReadingThread();
         this.readingThread.start();

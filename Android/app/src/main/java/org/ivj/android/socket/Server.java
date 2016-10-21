@@ -8,6 +8,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
+import org.ivj.android.sound.CommandWriter;
 import org.ivj.android.sound.Constants;
 
 import java.io.BufferedReader;
@@ -27,6 +28,7 @@ public class Server {
     public static String SERVERIP = "10.1.1.10";
 
     public static final int SERVERPORT = 8080;
+    private final CommandWriter commandWriter;
 
     private Handler handler;
 
@@ -34,9 +36,10 @@ public class Server {
 
     private ServerThread thread;
 
-    public Server(Handler handler) {
+    public Server(Handler handler, CommandWriter commandWriter) {
         SERVERIP = getLocalIpAddress();
         this.handler = handler;
+        this.commandWriter = commandWriter;
     }
 
     public void logOnScreen(String text) {
@@ -73,18 +76,11 @@ public class Server {
                             BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
                             String line = null;
                             while ((line = in.readLine()) != null) {
-                                Log.d("ServerActivity", line);
-                                final String message = "Received: " + line;
-                                handler.post(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        logOnScreen(message);
-                                    }
-                                });
-                                if (line.equals("ping")) {
+                                String response = process(line);
+                                if (response != null) {
                                     PrintWriter out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(client
                                             .getOutputStream())), true);
-                                    out.println("pong");
+                                    out.println(response);
                                     out.flush();
                                 }
                             }
@@ -103,6 +99,40 @@ public class Server {
                 e.printStackTrace();
             }
         }
+    }
+
+    private String process(String command) {
+        Log.d("ServerActivity", command);
+        if (command.startsWith("command.")) {
+            final String message = "Received: " + command;
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    logOnScreen(message);
+                }
+            });
+            if (command.endsWith(".ping")) {
+                return "PONG! Status of writer: " + commandWriter.isAckReceived();
+            } else if (command.contains(".arduino.")) {
+                if (!commandWriter.isAckReceived()) {
+                    return "Arduino hasn't acknowledged our existence yet";
+                }
+                if (command.endsWith(".run")) {
+                    commandWriter.postCommand(20);
+                } else if (command.endsWith(".stop")) {
+                    commandWriter.postCommand(20, 100);
+                } else if (command.endsWith(".right")) {
+                    commandWriter.postCommand(30, 45);
+                } else if (command.endsWith(".left")) {
+                    commandWriter.postCommand(30, 90);
+                } else if (command.endsWith(".led.on")) {
+                    commandWriter.postCommand(40);
+                } else if (command.endsWith(".led.off")) {
+                    commandWriter.postCommand(40, 100);
+                }
+            }
+        }
+        return null;
     }
 
     private String getLocalIpAddress() {
