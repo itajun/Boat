@@ -32,7 +32,15 @@
             android:text="Run"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:id="@+id/runButton" />
+            android:id="@+id/runButton"
+            android:onClick="runButtonClick" />
+
+        <Button
+            android:text="Stop"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/stopButton"
+            android:onClick="stopButtonClick" />
 
         <ListView
             android:layout_width="match_parent"

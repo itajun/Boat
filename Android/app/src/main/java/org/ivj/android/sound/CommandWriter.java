@@ -25,6 +25,7 @@ public class CommandWriter extends Thread implements Observer {
     private WritingThread writingThread;
     private boolean ackReceived;
     private Queue<int[]> commandQueue;
+    private int minSize;
 
     public CommandWriter(Handler handler, CommandReader commandReader) {
         this.handler = handler;
@@ -51,7 +52,7 @@ public class CommandWriter extends Thread implements Observer {
         // /1000 because sample rate is in hertz and durantion in ms
         final int numSamples = (int) (totalDuration * AUDIO_SAMPLE_RATE / 1000);
         final double sample[] = new double[numSamples];
-        final byte result[] = new byte[2 * numSamples];
+        final byte result[] = new byte[Math.max(2 * numSamples, minSize)];
 
         int offset = 0;
         for (int itemIdx = 0; itemIdx < duration.length; itemIdx++) {
@@ -82,6 +83,7 @@ public class CommandWriter extends Thread implements Observer {
         byte[] generatedWave = generateFrequency(duration);
 
         audioTrack.write(generatedWave, 0, generatedWave.length);
+        audioTrack.flush();
     }
 
     public void stopPlaying() {
@@ -100,7 +102,7 @@ public class CommandWriter extends Thread implements Observer {
     }
 
     public void setup() {
-        int minSize = AudioTrack.getMinBufferSize( AUDIO_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT );
+        minSize = AudioTrack.getMinBufferSize( AUDIO_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT );
         audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC,
                 AUDIO_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO,
                 AudioFormat.ENCODING_PCM_16BIT, minSize,

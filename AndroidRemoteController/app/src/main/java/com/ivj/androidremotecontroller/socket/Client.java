@@ -1,5 +1,8 @@
 package com.ivj.androidremotecontroller.socket;
 
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 
 import java.io.BufferedReader;
@@ -18,9 +21,23 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class Client {
     public static final int PORT = 8080;
+    private final Handler handler;
     private String ipAddress;
     private Queue<String> commands = new ConcurrentLinkedQueue<>();
     private Thread thread;
+
+    public Client(Handler handler) {
+        this.handler = handler;
+    }
+
+    public void logOnScreen(String text) {
+        Message message = new Message();
+        message.what = 1;
+        Bundle bundle = new Bundle();
+        bundle.putString("value", text);
+        message.setData(bundle);
+        handler.sendMessage(message);
+    }
 
     public void send(String command) {
         commands.offer(command);
@@ -59,7 +76,9 @@ public class Client {
                                 break;
                             }
                             if (socket.getInputStream().available() > 0) {
-                                Log.d("ClientActivity", "Received back: " + new BufferedReader(new InputStreamReader(socket.getInputStream())).readLine());
+                                String line = new BufferedReader(new InputStreamReader(socket.getInputStream())).readLine();
+                                Log.d("ClientActivity", "Received back: " + line);
+                                logOnScreen(line);
                             }
                         }
                     } catch (Exception e) {
